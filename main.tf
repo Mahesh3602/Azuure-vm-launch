@@ -80,7 +80,7 @@ resource "azurerm_linux_virtual_machine" "main" {
   name                            = "GLtest-VM"
   resource_group_name             = data.azurerm_resource_group.main.name
   location                        = data.azurerm_resource_group.main.location
-  size                            = "Standard_F4as_v6"
+  size                            = "Standard_B1s"
   admin_username                  = var.admin_username
   admin_password                  = var.admin_password
   disable_password_authentication = false
