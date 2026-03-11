@@ -1,0 +1,70 @@
+name: 'Terraform Manual Management'
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'apply'
+        type: choice
+        options:
+        - apply
+        - destroy
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_resource_group_name: ${{ vars.RESOURCE_GROUP }}
+      TF_VAR_admin_username: ${{ vars.VM_USERNAME }}
+      TF_VAR_admin_password: ${{ secrets.VM_PASSWORD }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Terraform Init
+      run: |
+        terraform init \
+          -backend-config="resource_group_name=${{ vars.TF_STATE_RG }}" \
+          -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+          -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+          -backend-config="key=terraform.tfstate"
+
+    - name: Terraform Plan
+      run: terraform plan -input=false
+
+    - name: Terraform Apply
+      if: github.event.inputs.action == 'apply'
+      run: terraform apply -auto-approve -input=false
+
+    - name: 'Check SSH Connectivity'
+      if: github.event.inputs.action == 'apply'
+      run: |
+        PUBLIC_IP=$(terraform output -raw public_ip_address)
+        echo "Waiting for SSH to respond at $PUBLIC_IP..."
+        for i in {1..12}; do
+          if nc -zv -w5 $PUBLIC_IP 22; then
+            echo "SSH is OPEN!"
+            exit 0
+          fi
+          echo "Retrying in 10s ($i/12)..."
+          sleep 10
+        done
+        exit 1
+
+    - name: Terraform Destroy
+      if: github.event.inputs.action == 'destroy'
+      run: terraform destroy -auto-approve -input=false
