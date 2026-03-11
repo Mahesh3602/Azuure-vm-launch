@@ -10,7 +10,7 @@ terraform {
 
 provider "azurerm" {
   features {}
-  resource_provider_registrations = "none"
+  skip_provider_registration = true
 }
 
 # We use a 'data' source because the RG already exists (created by your script)
